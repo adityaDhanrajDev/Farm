@@ -3,6 +3,7 @@ package com.example.flip.domain.repository
 import com.example.flip.domain.model.ActionRecord
 import com.example.flip.domain.model.ActionVerificationStatus
 import com.example.flip.domain.model.AdvisoryItem
+import com.example.flip.domain.model.CropAnalysisReport
 import com.example.flip.domain.model.FieldTwin
 import com.example.flip.domain.model.HotspotZone
 import com.example.flip.domain.model.PredictionForecast
@@ -20,6 +21,8 @@ interface FarmRepository {
     fun getProduceBatchesStream(): Flow<List<ProduceBatch>>
     fun getRegionalHotspotsStream(): Flow<List<HotspotZone>>
     fun getPredictionForecasts(fieldId: String): List<PredictionForecast>
+    fun getAnalysisReportsStream(): Flow<List<CropAnalysisReport>>
+    fun getAnalysisReportsForFieldStream(fieldId: String): Flow<List<CropAnalysisReport>>
 
     suspend fun insertSensorReading(reading: SensorReading)
     suspend fun updateFieldTwin(fieldTwin: FieldTwin)
@@ -27,6 +30,9 @@ interface FarmRepository {
     suspend fun updateActionVerification(actionId: String, status: ActionVerificationStatus, postMoisture: Double, note: String, noteHi: String)
     suspend fun markAdvisoryActionTaken(advisoryId: String)
     suspend fun addProduceBatch(batch: ProduceBatch)
+    suspend fun insertAnalysisReport(report: CropAnalysisReport)
+    suspend fun deleteAnalysisReport(reportId: String)
     suspend fun triggerSimulationScenario(fieldId: String, scenarioType: String)
     suspend fun syncOfflineData(): Boolean
 }
+

@@ -335,3 +335,72 @@ data class SyncQueueEntity(
     val retryCount: Int = 0,
     val status: String = "PENDING_SYNC"
 )
+
+@Entity(tableName = "crop_analysis_reports")
+data class CropAnalysisReportEntity(
+    @PrimaryKey val reportId: String,
+    val fieldId: String,
+    val cropName: String,
+    val imagePath: String,
+    val detectedCondition: String,
+    val detectedConditionHi: String,
+    val severityLevel: RiskLevel,
+    val confidencePercent: Int,
+    val summaryText: String,
+    val summaryTextHi: String,
+    val recommendedTreatment: String,
+    val recommendedTreatmentHi: String,
+    val soilMoisturePercent: Double,
+    val ambientTempC: Double,
+    val humidityPercent: Double,
+    val timestamp: Long,
+    val isLiveGeminiResponse: Boolean,
+    val farmerNotes: String
+) {
+    fun toDomain(): com.example.flip.domain.model.CropAnalysisReport =
+        com.example.flip.domain.model.CropAnalysisReport(
+            reportId = reportId,
+            fieldId = fieldId,
+            cropName = cropName,
+            imagePath = imagePath,
+            detectedCondition = detectedCondition,
+            detectedConditionHi = detectedConditionHi,
+            severityLevel = severityLevel,
+            confidencePercent = confidencePercent,
+            summaryText = summaryText,
+            summaryTextHi = summaryTextHi,
+            recommendedTreatment = recommendedTreatment,
+            recommendedTreatmentHi = recommendedTreatmentHi,
+            soilMoisturePercent = soilMoisturePercent,
+            ambientTempC = ambientTempC,
+            humidityPercent = humidityPercent,
+            timestamp = timestamp,
+            isLiveGeminiResponse = isLiveGeminiResponse,
+            farmerNotes = farmerNotes
+        )
+
+    companion object {
+        fun fromDomain(report: com.example.flip.domain.model.CropAnalysisReport): CropAnalysisReportEntity =
+            CropAnalysisReportEntity(
+                reportId = report.reportId,
+                fieldId = report.fieldId,
+                cropName = report.cropName,
+                imagePath = report.imagePath,
+                detectedCondition = report.detectedCondition,
+                detectedConditionHi = report.detectedConditionHi,
+                severityLevel = report.severityLevel,
+                confidencePercent = report.confidencePercent,
+                summaryText = report.summaryText,
+                summaryTextHi = report.summaryTextHi,
+                recommendedTreatment = report.recommendedTreatment,
+                recommendedTreatmentHi = report.recommendedTreatmentHi,
+                soilMoisturePercent = report.soilMoisturePercent,
+                ambientTempC = report.ambientTempC,
+                humidityPercent = report.humidityPercent,
+                timestamp = report.timestamp,
+                isLiveGeminiResponse = report.isLiveGeminiResponse,
+                farmerNotes = report.farmerNotes
+            )
+    }
+}
+

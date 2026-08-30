@@ -7,12 +7,14 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import com.example.flip.data.local.dao.ActionDao
 import com.example.flip.data.local.dao.AdvisoryDao
+import com.example.flip.data.local.dao.CropAnalysisDao
 import com.example.flip.data.local.dao.FieldDao
 import com.example.flip.data.local.dao.ProduceDao
 import com.example.flip.data.local.dao.SensorDao
 import com.example.flip.data.local.dao.SyncDao
 import com.example.flip.data.local.entity.ActionRecordEntity
 import com.example.flip.data.local.entity.AdvisoryEntity
+import com.example.flip.data.local.entity.CropAnalysisReportEntity
 import com.example.flip.data.local.entity.FieldEntity
 import com.example.flip.data.local.entity.ProduceBatchEntity
 import com.example.flip.data.local.entity.SensorReadingEntity
@@ -25,7 +27,8 @@ import com.example.flip.data.local.entity.SyncQueueEntity
         AdvisoryEntity::class,
         ActionRecordEntity::class,
         ProduceBatchEntity::class,
-        SyncQueueEntity::class
+        SyncQueueEntity::class,
+        CropAnalysisReportEntity::class
     ],
     version = 1,
     exportSchema = false
@@ -38,6 +41,8 @@ abstract class FlipDatabase : RoomDatabase() {
     abstract fun actionDao(): ActionDao
     abstract fun produceDao(): ProduceDao
     abstract fun syncDao(): SyncDao
+    abstract fun cropAnalysisDao(): CropAnalysisDao
+
 
     companion object {
         @Volatile

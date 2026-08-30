@@ -1,5 +1,11 @@
 package com.example.flip.presentation.components
 
+import android.app.Activity
+import android.content.Intent
+import android.speech.RecognizerIntent
+import android.speech.tts.TextToSpeech
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -19,12 +25,16 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Sensors
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.WaterDrop
@@ -44,10 +54,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedCard
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -57,8 +71,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.flip.domain.model.ActionRecord
@@ -70,6 +86,7 @@ import com.example.flip.domain.model.SensorQualityStatus
 import com.example.flip.domain.model.SensorReading
 import com.example.flip.domain.usecase.VoiceResponse
 import com.example.ui.theme.*
+import java.util.Locale
 
 @Composable
 fun RiskStatusBadge(
@@ -556,10 +573,57 @@ fun VoiceAssistantBottomSheet(
     onSubmitQuery: (String) -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val context = LocalContext.current
+    var typedQuery by remember { mutableStateOf("") }
+    var isTtsSpeaking by remember { mutableStateOf(false) }
+
+    // Initialize Text-To-Speech engine
+    var tts: TextToSpeech? by remember { mutableStateOf(null) }
+    DisposableEffect(Unit) {
+        var ttsInstance: TextToSpeech? = null
+        ttsInstance = TextToSpeech(context) { status ->
+            if (status == TextToSpeech.SUCCESS) {
+                ttsInstance?.language = if (isHindi) Locale("hi", "IN") else Locale.US
+            }
+        }
+        tts = ttsInstance
+        onDispose {
+            ttsInstance?.stop()
+            ttsInstance?.shutdown()
+        }
+    }
+
+    // Speech to Text Intent Launcher
+    val speechLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val spokenTextList = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+            val spokenQuery = spokenTextList?.firstOrNull()
+            if (!spokenQuery.isNullOrBlank()) {
+                typedQuery = spokenQuery
+                onSubmitQuery(spokenQuery)
+            }
+        }
+    }
+
+    // Play TTS when new response arrives
+    LaunchedEffect(response) {
+        if (response != null && tts != null) {
+            val textToSpeak = if (isHindi) response.spokenTextHi else response.spokenTextEn
+            tts?.language = if (isHindi) Locale("hi", "IN") else Locale.US
+            tts?.speak(textToSpeak, TextToSpeech.QUEUE_FLUSH, null, "FLIP_ADVISORY_TTS")
+            isTtsSpeaking = true
+        }
+    }
 
     if (isOpen) {
         ModalBottomSheet(
-            onDismissRequest = onDismiss,
+            onDismissRequest = {
+                tts?.stop()
+                isTtsSpeaking = false
+                onDismiss()
+            },
             sheetState = sheetState,
             containerColor = MaterialTheme.colorScheme.surface
         ) {
@@ -574,62 +638,127 @@ fun VoiceAssistantBottomSheet(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = if (isHindi) "FLIP आवाज सहायक (Voice AI)" else "FLIP Agrarian Voice Assistant",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = AgriGreenDark
-                    )
-                    IconButton(onClick = onDismiss) {
+                    Column {
+                        Text(
+                            text = if (isHindi) "FLIP आवाज सहायक (Voice AI)" else "FLIP Agrarian Voice Assistant",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = AgriGreenDark
+                        )
+                        Text(
+                            text = if (isHindi) "हिंदी व अंग्रेजी में बोलें या टाइप करें" else "Speak or type your farming questions",
+                            fontSize = 11.sp,
+                            color = TextSecondary
+                        )
+                    }
+                    IconButton(onClick = {
+                        tts?.stop()
+                        isTtsSpeaking = false
+                        onDismiss()
+                    }) {
                         Icon(imageVector = Icons.Default.Close, contentDescription = "Close")
                     }
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Microphone pulse visual
+                // Microphone pulse visual & Voice Trigger
                 Surface(
                     color = if (isListening) StatusWatchAmber else AgriGreenPrimary,
                     shape = CircleShape,
                     modifier = Modifier
-                        .size(72.dp)
+                        .size(76.dp)
                         .clickable {
-                            onSubmitQuery(
-                                if (isHindi) "मेरी फसल को पानी कब देना है?" else "When should I irrigate my tomato crop?"
-                            )
+                            try {
+                                val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, if (isHindi) "hi-IN" else "en-US")
+                                    putExtra(RecognizerIntent.EXTRA_PROMPT, if (isHindi) "फसल या खेत का प्रश्न बोलें..." else "Ask a crop question...")
+                                }
+                                speechLauncher.launch(intent)
+                            } catch (e: Exception) {
+                                // Fallback directly to simulated query if speech recognition intent not found on device
+                                onSubmitQuery(
+                                    if (isHindi) "मेरी फसल को पानी कब देना है?" else "When should I irrigate my tomato crop?"
+                                )
+                            }
                         }
                         .testTag("voice_mic_button")
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         if (isListening) {
-                            CircularProgressIndicator(color = Color.White, modifier = Modifier.size(40.dp))
+                            CircularProgressIndicator(color = Color.White, modifier = Modifier.size(42.dp))
                         } else {
                             Icon(
                                 imageVector = Icons.Default.Mic,
                                 contentDescription = "Mic",
                                 tint = Color.White,
-                                modifier = Modifier.size(36.dp)
+                                modifier = Modifier.size(38.dp)
                             )
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(10.dp))
                 Text(
                     text = if (isListening) {
                         if (isHindi) "सुन रहा हूँ... (Listening)" else "Listening to field query..."
                     } else {
-                        if (isHindi) "माइक दबाएं या नीचे दिए प्रश्न पर टैप करें" else "Tap mic or select a quick question below"
+                        if (isHindi) "माइक दबाकर बोलें या नीचे प्रश्न चुनें / टाइप करें" else "Tap mic to speak or enter question below"
                     },
-                    fontSize = 13.sp,
+                    fontSize = 12.sp,
                     color = TextSecondary
                 )
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Typed Query Field with Send Button
+                OutlinedTextField(
+                    value = typedQuery,
+                    onValueChange = { typedQuery = it },
+                    placeholder = {
+                        Text(
+                            text = if (isHindi) "या यहाँ प्रश्न लिखें (उदा. सिंचाई, बीमारी, भाव)..." else "Or type query (e.g. water, pest, market)...",
+                            fontSize = 12.sp
+                        )
+                    },
+                    trailingIcon = {
+                        if (typedQuery.isNotBlank()) {
+                            IconButton(
+                                onClick = {
+                                    onSubmitQuery(typedQuery)
+                                    typedQuery = ""
+                                }
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Send,
+                                    contentDescription = "Send Query",
+                                    tint = AgriGreenPrimary
+                                )
+                            }
+                        }
+                    },
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                    keyboardActions = KeyboardActions(onSend = {
+                        if (typedQuery.isNotBlank()) {
+                            onSubmitQuery(typedQuery)
+                            typedQuery = ""
+                        }
+                    }),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = AgriGreenPrimary,
+                        unfocusedBorderColor = SurfaceBorder
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(14.dp))
 
                 // Quick Questions Chips
                 Text(
-                    text = if (isHindi) "त्वरित प्रश्न (Quick Questions):" else "Sample Questions:",
+                    text = if (isHindi) "त्वरित प्रश्न (Quick Suggestions):" else "Quick Sample Questions:",
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = TextPrimary,
@@ -649,40 +778,75 @@ fun VoiceAssistantBottomSheet(
 
                 sampleQueries.forEach { query ->
                     OutlinedButton(
-                        onClick = { onSubmitQuery(query) },
+                        onClick = {
+                            typedQuery = query
+                            onSubmitQuery(query)
+                        },
+                        shape = RoundedCornerShape(10.dp),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 4.dp)
+                            .padding(vertical = 3.dp)
                     ) {
-                        Text(text = query, fontSize = 12.sp)
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
+                            Text(text = "💬 $query", fontSize = 12.sp, color = TextPrimary)
+                        }
                     }
                 }
 
-                // Spoken Response View
+                // Spoken Response View with TTS playback
                 AnimatedVisibility(visible = response != null) {
                     if (response != null) {
                         Card(
                             colors = CardDefaults.cardColors(containerColor = AgriGreenContainer),
-                            shape = RoundedCornerShape(12.dp),
+                            shape = RoundedCornerShape(14.dp),
+                            border = BorderStroke(1.dp, AgriGreenPrimary.copy(alpha = 0.3f)),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(top = 16.dp)
+                                .padding(top = 14.dp)
                         ) {
                             Column(modifier = Modifier.padding(14.dp)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        imageVector = Icons.Default.VolumeUp,
-                                        contentDescription = null,
-                                        tint = AgriGreenDark,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = if (isHindi) "एआई का उत्तर (Voice Response):" else "AI Audio Advisory:",
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = AgriGreenDark
-                                    )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            imageVector = Icons.Default.VolumeUp,
+                                            contentDescription = null,
+                                            tint = AgriGreenDark,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = if (isHindi) "एआई उत्तर (Audio Advisory):" else "AI Audio Advisory:",
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = AgriGreenDark
+                                        )
+                                    }
+
+                                    IconButton(
+                                        onClick = {
+                                            if (isTtsSpeaking) {
+                                                tts?.stop()
+                                                isTtsSpeaking = false
+                                            } else {
+                                                val textToSpeak = if (isHindi) response.spokenTextHi else response.spokenTextEn
+                                                tts?.language = if (isHindi) Locale("hi", "IN") else Locale.US
+                                                tts?.speak(textToSpeak, TextToSpeech.QUEUE_FLUSH, null, "FLIP_TTS_REPLAY")
+                                                isTtsSpeaking = true
+                                            }
+                                        },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = if (isTtsSpeaking) Icons.Default.Stop else Icons.Default.VolumeUp,
+                                            contentDescription = "Audio Playback",
+                                            tint = AgriGreenDark,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
                                 }
                                 Spacer(modifier = Modifier.height(6.dp))
                                 Text(
@@ -691,17 +855,18 @@ fun VoiceAssistantBottomSheet(
                                     color = AgriOnGreenContainer,
                                     lineHeight = 20.sp
                                 )
-                                Spacer(modifier = Modifier.height(8.dp))
+                                Spacer(modifier = Modifier.height(10.dp))
                                 Surface(
                                     color = Color.White,
-                                    shape = RoundedCornerShape(6.dp)
+                                    shape = RoundedCornerShape(8.dp),
+                                    border = BorderStroke(1.dp, AgriGreenPrimary.copy(alpha = 0.2f))
                                 ) {
                                     Text(
                                         text = "👉 ${if (isHindi) response.actionSuggestionHi else response.actionSuggestion}",
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = AgriGreenPrimary,
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                                     )
                                 }
                             }

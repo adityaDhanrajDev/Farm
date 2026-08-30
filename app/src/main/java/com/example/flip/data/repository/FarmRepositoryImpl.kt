@@ -3,6 +3,7 @@ package com.example.flip.data.repository
 import com.example.flip.data.local.FlipDatabase
 import com.example.flip.data.local.entity.ActionRecordEntity
 import com.example.flip.data.local.entity.AdvisoryEntity
+import com.example.flip.data.local.entity.CropAnalysisReportEntity
 import com.example.flip.data.local.entity.FieldEntity
 import com.example.flip.data.local.entity.ProduceBatchEntity
 import com.example.flip.data.local.entity.SensorReadingEntity
@@ -11,6 +12,7 @@ import com.example.flip.domain.model.ActionRecord
 import com.example.flip.domain.model.ActionVerificationStatus
 import com.example.flip.domain.model.AdvisoryCategory
 import com.example.flip.domain.model.AdvisoryItem
+import com.example.flip.domain.model.CropAnalysisReport
 import com.example.flip.domain.model.CropStage
 import com.example.flip.domain.model.Explanation5W
 import com.example.flip.domain.model.FieldTwin
@@ -264,8 +266,74 @@ class FarmRepositoryImpl(
                 )
             )
             database.produceDao().insertAll(produceBatches)
+
+            // Seed Initial Crop Analysis Reports for Gallery
+            val initialReports = listOf(
+                CropAnalysisReportEntity(
+                    reportId = "REP-2026-0830-01",
+                    fieldId = "FIELD-001",
+                    cropName = "Tomato (टमाटर)",
+                    imagePath = "sample_early_blight.jpg",
+                    detectedCondition = "Early Blight (Alternaria solani)",
+                    detectedConditionHi = "अगेती झुलसा रोग (Alternaria solani)",
+                    severityLevel = RiskLevel.ACTION_NEEDED,
+                    confidencePercent = 89,
+                    summaryText = "Concentric brown spots with chlorotic yellow halo detected on lower leaves. Microclimate indicates high humidity (88%) accelerating spore dispersal.",
+                    summaryTextHi = "निचली पत्तियों पर गोल भूरे धब्बे और पीला घेरा पाया गया। 88% आर्द्रता के कारण फफूंद तेजी से फैल रही है।",
+                    recommendedTreatment = "Spray Mancozeb 75% WP @ 2.5g/L or copper oxychloride within 48h. Prune severely affected bottom leaves.",
+                    recommendedTreatmentHi = "48 घंटे के भीतर मैंकोजेब 75% WP @ 2.5 ग्राम/लीटर का छिड़काव करें। प्रभावित निचली पत्तियां काटें।",
+                    soilMoisturePercent = 19.5,
+                    ambientTempC = 29.5,
+                    humidityPercent = 88.0,
+                    timestamp = System.currentTimeMillis() - (1000 * 60 * 60 * 2), // 2 hours ago
+                    isLiveGeminiResponse = true,
+                    farmerNotes = "Observed on East plot lower canopy near drip line."
+                ),
+                CropAnalysisReportEntity(
+                    reportId = "REP-2026-0829-02",
+                    fieldId = "FIELD-002",
+                    cropName = "Chilli (हरी मिर्च)",
+                    imagePath = "sample_leaf_curl.jpg",
+                    detectedCondition = "Chilli Leaf Curl Virus (Begomovirus) / Thrips",
+                    detectedConditionHi = "मिर्च पर्ण कुंचन वायरस / थ्रिप्स का प्रकोप",
+                    severityLevel = RiskLevel.WATCH,
+                    confidencePercent = 82,
+                    summaryText = "Upward curling and puckering of leaf margins with slight vein clearing. Vector insect (whitefly/thrips) activity suspected.",
+                    summaryTextHi = "पत्तियों का ऊपर की ओर मुड़ना देखा गया। सफेद मक्खी या थ्रिप्स कीट द्वारा वायरस फैलाव का संदेह है।",
+                    recommendedTreatment = "Install 15 yellow sticky traps/acre and apply Neem oil (10,000 ppm) @ 3ml/L or Imidacloprid 17.8 SL @ 0.5ml/L.",
+                    recommendedTreatmentHi = "15 पीले चिपचिपे ट्रैप प्रति एकड़ लगाएं और नीम तेल (10,000 ppm) @ 3 मिली/लीटर का छिड़काव करें।",
+                    soilMoisturePercent = 23.0,
+                    ambientTempC = 33.0,
+                    humidityPercent = 62.0,
+                    timestamp = System.currentTimeMillis() - (1000 * 60 * 60 * 26), // 1 day ago
+                    isLiveGeminiResponse = true,
+                    farmerNotes = "Sticky traps installed yesterday."
+                ),
+                CropAnalysisReportEntity(
+                    reportId = "REP-2026-0828-03",
+                    fieldId = "FIELD-003",
+                    cropName = "Wheat (गेहूं)",
+                    imagePath = "sample_healthy_leaf.jpg",
+                    detectedCondition = "Healthy Foliage - Normal Vigor",
+                    detectedConditionHi = "स्वस्थ फसल - उत्तम क्लोरोफिल व विकास",
+                    severityLevel = RiskLevel.SAFE,
+                    confidencePercent = 96,
+                    summaryText = "Dense green foliage with uniform chlorophyll distribution. No visible fungal lesions or insect chewing damage.",
+                    summaryTextHi = "पत्तियां पूरी तरह हरी और स्वस्थ हैं। किसी रोग या कीट के लक्षण नहीं हैं।",
+                    recommendedTreatment = "Maintain scheduled light irrigation; continue balanced NPK nutrient regime.",
+                    recommendedTreatmentHi = "नियमित हल्की सिंचाई बनाए रखें और संतुलित खाद प्रबंधन जारी रखें।",
+                    soilMoisturePercent = 28.0,
+                    ambientTempC = 27.0,
+                    humidityPercent = 54.0,
+                    timestamp = System.currentTimeMillis() - (1000 * 60 * 60 * 54), // 2 days ago
+                    isLiveGeminiResponse = false,
+                    farmerNotes = "Routine pre-booting inspection passed."
+                )
+            )
+            database.cropAnalysisDao().insertAll(initialReports)
         }
     }
+
 
     override fun getFieldsStream(): Flow<List<FieldTwin>> {
         return database.fieldDao().getAllFields().map { list -> list.map { it.toDomain() } }
@@ -528,6 +596,22 @@ class FarmRepositoryImpl(
         }
     }
 
+    override fun getAnalysisReportsStream(): Flow<List<CropAnalysisReport>> {
+        return database.cropAnalysisDao().getAllReports().map { list -> list.map { it.toDomain() } }
+    }
+
+    override fun getAnalysisReportsForFieldStream(fieldId: String): Flow<List<CropAnalysisReport>> {
+        return database.cropAnalysisDao().getReportsForField(fieldId).map { list -> list.map { it.toDomain() } }
+    }
+
+    override suspend fun insertAnalysisReport(report: CropAnalysisReport) = withContext(Dispatchers.IO) {
+        database.cropAnalysisDao().insertReport(CropAnalysisReportEntity.fromDomain(report))
+    }
+
+    override suspend fun deleteAnalysisReport(reportId: String) = withContext(Dispatchers.IO) {
+        database.cropAnalysisDao().deleteReportById(reportId)
+    }
+
     override suspend fun syncOfflineData(): Boolean = withContext(Dispatchers.IO) {
         // Bi-directional delta sync implementation
         val queue = database.syncDao().getPendingSyncItems()
@@ -537,3 +621,4 @@ class FarmRepositoryImpl(
         true
     }
 }
+

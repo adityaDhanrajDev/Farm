@@ -93,3 +93,28 @@ interface SyncDao {
     @Query("UPDATE sync_queue SET status = 'SYNCED' WHERE queueId = :queueId")
     suspend fun markSynced(queueId: String)
 }
+
+@Dao
+interface CropAnalysisDao {
+    @Query("SELECT * FROM crop_analysis_reports ORDER BY timestamp DESC")
+    fun getAllReports(): Flow<List<com.example.flip.data.local.entity.CropAnalysisReportEntity>>
+
+    @Query("SELECT * FROM crop_analysis_reports WHERE fieldId = :fieldId ORDER BY timestamp DESC")
+    fun getReportsForField(fieldId: String): Flow<List<com.example.flip.data.local.entity.CropAnalysisReportEntity>>
+
+    @Query("SELECT * FROM crop_analysis_reports WHERE reportId = :reportId LIMIT 1")
+    fun getReportById(reportId: String): Flow<com.example.flip.data.local.entity.CropAnalysisReportEntity?>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertReport(report: com.example.flip.data.local.entity.CropAnalysisReportEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(reports: List<com.example.flip.data.local.entity.CropAnalysisReportEntity>)
+
+    @Query("DELETE FROM crop_analysis_reports WHERE reportId = :reportId")
+    suspend fun deleteReportById(reportId: String)
+
+    @Query("SELECT COUNT(*) FROM crop_analysis_reports")
+    fun getReportCount(): Flow<Int>
+}
+

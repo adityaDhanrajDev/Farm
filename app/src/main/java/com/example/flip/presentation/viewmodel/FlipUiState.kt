@@ -2,6 +2,7 @@ package com.example.flip.presentation.viewmodel
 
 import com.example.flip.domain.model.ActionRecord
 import com.example.flip.domain.model.AdvisoryItem
+import com.example.flip.domain.model.CropAnalysisReport
 import com.example.flip.domain.model.FieldTwin
 import com.example.flip.domain.model.HotspotZone
 import com.example.flip.domain.model.MultimodalDiagnosis
@@ -29,6 +30,15 @@ data class FlipUiState(
     val latestDiagnosis: MultimodalDiagnosis? = null,
     val expertEscalationSuccess: Boolean = false,
 
+    // Gemini API Crop Image Analysis State
+    val isAnalyzingGemini: Boolean = false,
+    val lastCapturedImagePath: String? = null,
+    val geminiCropAnalysis: com.example.flip.data.remote.gemini.GeminiAnalysisResult? = null,
+
+    // Saved Crop Analysis Reports Gallery (Local Room Database)
+    val analysisReports: List<CropAnalysisReport> = emptyList(),
+    val isSavingReport: Boolean = false,
+
     // Smart Irrigation Decision State
     val currentIrrigationDecision: IrrigationDecision? = null,
     val isExecutingIrrigation: Boolean = false,
@@ -44,3 +54,4 @@ data class FlipUiState(
     val isSyncing: Boolean = false,
     val lastSyncMessage: String? = null
 )
+

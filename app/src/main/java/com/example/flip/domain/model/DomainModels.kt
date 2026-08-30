@@ -239,3 +239,28 @@ data class HotspotZone(
     val affectedFarmsCount: Int,
     val distanceKmFromUser: Double
 )
+
+/**
+ * Saved Multimodal Crop & Leaf Analysis Report
+ */
+data class CropAnalysisReport(
+    val reportId: String = java.util.UUID.randomUUID().toString(),
+    val fieldId: String,
+    val cropName: String,
+    val imagePath: String,
+    val detectedCondition: String,
+    val detectedConditionHi: String,
+    val severityLevel: RiskLevel,
+    val confidencePercent: Int,
+    val summaryText: String,
+    val summaryTextHi: String,
+    val recommendedTreatment: String,
+    val recommendedTreatmentHi: String = "",
+    val soilMoisturePercent: Double = 24.0,
+    val ambientTempC: Double = 31.0,
+    val humidityPercent: Double = 65.0,
+    val timestamp: Long = System.currentTimeMillis(),
+    val isLiveGeminiResponse: Boolean = false,
+    val farmerNotes: String = ""
+)
+

@@ -8,7 +8,9 @@ import com.example.flip.data.repository.AiDiagnosticRepositoryImpl
 import com.example.flip.data.repository.FarmRepositoryImpl
 import com.example.flip.domain.model.ActionRecord
 import com.example.flip.domain.model.ActionVerificationStatus
+import com.example.flip.domain.model.CropAnalysisReport
 import com.example.flip.domain.model.FieldTwin
+import com.example.flip.domain.model.RiskLevel
 import com.example.flip.domain.model.SensorReading
 import com.example.flip.domain.repository.AiDiagnosticRepository
 import com.example.flip.domain.repository.FarmRepository
@@ -22,13 +24,16 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
+import com.example.flip.data.remote.gemini.GeminiCropAnalysisService
 import kotlinx.coroutines.launch
+import java.io.File
 import java.util.UUID
 
 class FlipViewModel @JvmOverloads constructor(
     application: Application,
     private val farmRepository: FarmRepository = FarmRepositoryImpl(FlipDatabase.getInstance(application)),
     private val aiRepository: AiDiagnosticRepository = AiDiagnosticRepositoryImpl(),
+    private val geminiAnalysisService: GeminiCropAnalysisService = GeminiCropAnalysisService(application),
     private val smartIrrigationEngine: SmartIrrigationUseCase = SmartIrrigationUseCase(),
     private val closedLoopVerifier: ClosedLoopVerificationUseCase = ClosedLoopVerificationUseCase(),
     private val voiceAdvisoryEngine: VoiceAdvisoryUseCase = VoiceAdvisoryUseCase()
@@ -41,7 +46,15 @@ class FlipViewModel @JvmOverloads constructor(
         observeFields()
         observeHotspots()
         observeProduceBatches()
+        observeAnalysisReports()
     }
+
+    private fun observeAnalysisReports() {
+        farmRepository.getAnalysisReportsStream().onEach { reports ->
+            _uiState.update { it.copy(analysisReports = reports) }
+        }.launchIn(viewModelScope)
+    }
+
 
     private fun observeFields() {
         farmRepository.getFieldsStream().onEach { fieldsList ->
@@ -146,6 +159,94 @@ class FlipViewModel @JvmOverloads constructor(
             _uiState.update { it.copy(isDiagnosing = false, latestDiagnosis = diagnosis) }
         }
     }
+
+    /**
+     * Executes multimodal Gemini API analysis on a captured and saved crop photo
+     */
+    fun runGeminiCropImageAnalysis(imagePath: String) {
+        val field = _uiState.value.selectedField
+        val telemetry = _uiState.value.latestTelemetry
+        val imageFile = File(imagePath)
+
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    isAnalyzingGemini = true,
+                    lastCapturedImagePath = imagePath,
+                    geminiCropAnalysis = null
+                )
+            }
+
+            val analysisResult = geminiAnalysisService.analyzeCropImage(
+                imageFile = imageFile,
+                fieldTwin = field,
+                telemetry = telemetry
+            )
+
+            // Auto-persist analysis report to local Room database for Gallery view
+            val reportEntity = CropAnalysisReport(
+                reportId = "REP-${System.currentTimeMillis()}",
+                fieldId = field?.fieldId ?: "FIELD-001",
+                cropName = field?.cropName ?: "Tomato (टमाटर)",
+                imagePath = imagePath,
+                detectedCondition = analysisResult.conditionName,
+                detectedConditionHi = analysisResult.conditionNameHi,
+                severityLevel = when (analysisResult.severity.uppercase()) {
+                    "ACTION_NEEDED", "HIGH" -> RiskLevel.ACTION_NEEDED
+                    "WATCH", "MEDIUM" -> RiskLevel.WATCH
+                    else -> RiskLevel.SAFE
+                },
+                confidencePercent = analysisResult.confidencePercent,
+                summaryText = analysisResult.summaryText,
+                summaryTextHi = analysisResult.summaryTextHi,
+                recommendedTreatment = analysisResult.prescribedTreatment,
+                recommendedTreatmentHi = analysisResult.prescribedTreatmentHi,
+                soilMoisturePercent = telemetry?.soilMoisturePercent ?: 24.0,
+                ambientTempC = telemetry?.airTempC ?: 31.0,
+                humidityPercent = telemetry?.humidityPercent ?: 65.0,
+                timestamp = System.currentTimeMillis(),
+                isLiveGeminiResponse = !analysisResult.isModelFallback,
+                farmerNotes = "Auto-saved AI leaf diagnosis"
+            )
+            farmRepository.insertAnalysisReport(reportEntity)
+
+            _uiState.update {
+                it.copy(
+                    isAnalyzingGemini = false,
+                    geminiCropAnalysis = analysisResult
+                )
+            }
+        }
+    }
+
+    fun saveCropAnalysisReport(report: CropAnalysisReport) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isSavingReport = true) }
+            farmRepository.insertAnalysisReport(report)
+            _uiState.update {
+                it.copy(
+                    isSavingReport = false,
+                    lastSyncMessage = if (it.isHindi) "विश्लेषण रिपोर्ट डेटाबेस में सुरक्षित हो गई" else "Analysis report saved to local database"
+                )
+            }
+        }
+    }
+
+    fun deleteCropAnalysisReport(reportId: String) {
+        viewModelScope.launch {
+            farmRepository.deleteAnalysisReport(reportId)
+            _uiState.update {
+                it.copy(
+                    lastSyncMessage = if (it.isHindi) "रिपोर्ट सफलतापूर्वक हटा दी गई" else "Report removed from local database"
+                )
+            }
+        }
+    }
+
+    fun clearGeminiAnalysis() {
+        _uiState.update { it.copy(geminiCropAnalysis = null, isAnalyzingGemini = false) }
+    }
+
 
     fun escalateToExpert(farmerNote: String = "") {
         val diag = _uiState.value.latestDiagnosis ?: return
