@@ -1,0 +1,6 @@
+{
+  "name": "FLIP - Farm Intelligence",
+  "description": "Edge-AI Powered Farm Lifecycle Intelligence Platform with Multimodal Fusion, Digital Twin, Closed-Loop Action Verification, and Smart Advisory",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
